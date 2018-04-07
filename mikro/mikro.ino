@@ -1,12 +1,12 @@
 #include <Adafruit_NeoPixel.h>
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(8, A0, NEO_GRB + NEO_KHZ800); // initialization of LED strip
-unsigned long timer;
+bool light = true;
+
 //////////////////////////////////
 
 void setup() 
 {
-  Serial.begin(9600);
   strip.begin();
   strip.show();
 }
@@ -65,18 +65,7 @@ void program_U1() // user program No. 1
       strip.setBrightness(5);
       strip.setPixelColor(i, strip.Color(255, 0, 0));
       strip.show();
-
-      // Adding this because I need to check that on leds
-      for(int i = 0; i < 2000; i++)
-      {
-//        // Input check
-//        check_button();
-//        check_encoder();
-//        
-//        if(was_change)  {   break;  }
-      }
-      
-      delay(100);
+      delay(250);
       strip.setBrightness(0);
     }
     else
@@ -84,18 +73,7 @@ void program_U1() // user program No. 1
       strip.setBrightness(5);
       strip.setPixelColor(i, strip.Color(0, 0, 255));
       strip.show();
-      
-      // Adding this because I need to check that on leds
-      for(int i = 0; i < 2000; i++)
-      {
-//        // Input check
-//        check_button();
-//        check_encoder();
-//        
-//        if(was_change)  {   break;  }
-      }
-      
-      delay(100);
+      delay(250);
       strip.setBrightness(0);
     }
   }
@@ -108,16 +86,6 @@ void program_U2() // user program No. 2
     rainbow_array[0] = 255;
     rainbow_array[1] = 0;
     rainbow_array[2] = 0;
-
-    // Adding this because I need to check that on leds
-        for(int i = 0; i < 2000; i++)
-        {
-          // Input check
-  //        check_button();
-  //        check_encoder();
-  //        
-  //        if(was_change)  {   break;  }
-        }
     
     for(int i = 0; i < 3; i++)
     {
@@ -125,21 +93,10 @@ void program_U2() // user program No. 2
 
       for(int k = 0; k < 255; k += 1) 
       {
-        
-        // Adding this because I need to check that on leds
-        for(int i = 0; i < 2000; i++)
-        {
-          // Input check
-  //        check_button();
-  //        check_encoder();
-  //        
-  //        if(was_change)  {   break;  }
-        }
-        
-        rainbow_array[i] -= 1;
-        rainbow_array[j] += 1;
-        
-        set_color(rainbow_array[0], rainbow_array[1], rainbow_array[2]);
+      rainbow_array[i] -= 1;
+      rainbow_array[j] += 1;
+      
+      set_color(rainbow_array[0], rainbow_array[1], rainbow_array[2]);
       }
     }
 }
@@ -190,7 +147,5 @@ void program_U3() // user program No. 3
 
 void loop() 
 {
-  timer = millis();
   program_U2();
-  Serial.println(millis() - timer);
 }
