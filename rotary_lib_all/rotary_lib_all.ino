@@ -33,6 +33,7 @@ int curr_bright_level = 0;
 int max_curr_bright_level = pow(2, (int)K) - 1;
 
 bool was_change = false;
+unsigned long x = 0;
 
 unsigned long timer;
 
@@ -75,9 +76,11 @@ void loop()
   // User programs
   if(!is_changing_K)
   {
+    x = millis();
     if(U1) {  Serial.print("loop: U1, button_down_counter = "); Serial.println(button_down_counter); program_U1(); }
     if(U2) {  Serial.print("loop: U2, button_down_counter = "); Serial.println(button_down_counter); program_U2(); }
     if(U3) {  Serial.print("loop: U3, button_down_counter = "); Serial.println(button_down_counter); program_U3(); } 
+    Serial.println(millis() - x);
   }
 }
 
@@ -359,11 +362,9 @@ void program_GB() // setting GREEN and BLUE colors
 }
 
 void program_U1() // user program No. 1
+                  // red and blue led lights alternately
 {
   int i = 0;
-  //change_program = false;
-  //while(true)
-  //{
   for(i = 0; i < 8; i++)
   {
     if(i % 2 == 0)
@@ -371,6 +372,7 @@ void program_U1() // user program No. 1
       strip.setBrightness(bright_level[curr_bright_level]);
       strip.setPixelColor(i, strip.Color(255, 0, 0));
       strip.show();
+      
       for(int i = 0; i < SAMPLING_RATE; i++)
       {
         // Input check
@@ -379,7 +381,7 @@ void program_U1() // user program No. 1
         
         if(was_change)  {   break;  }
       }
-//      delay(50);
+      
       timer = millis();
       while(millis() - timer < 80UL) {}
       strip.setBrightness(0); 
@@ -389,6 +391,7 @@ void program_U1() // user program No. 1
       strip.setBrightness(bright_level[curr_bright_level]);
       strip.setPixelColor(i, strip.Color(0, 0, 255));
       strip.show();
+
       for(int i = 0; i < SAMPLING_RATE; i++)
       {
         // Input check
@@ -397,31 +400,43 @@ void program_U1() // user program No. 1
         
         if(was_change)  {   break;  }
       }
+      
       timer = millis();
       while(millis() - timer < 80UL) {}
       strip.setBrightness(0); 
     }
-    check_button();
   }
-  //}
-  //change_program = false;
 }
 
 void program_U2() // user program No. 2
+                  // rainbow led lights 
 {
-    int i = 0;
-    int rand_nr = random(0, 8);
-    int rand_nrR = random(10, 50);
-    int rand_nrG = random(10, 50);
-    int rand_nrB = random(10, 50);
-    for(i = 0; i < 8; i++)
+  unsigned int rainbow_array[3];
+  rainbow_array[0] = 255;
+  rainbow_array[1] = 0;
+  rainbow_array[2] = 0;
+  
+  for(int i = 0; i < 3; i++)
+  {
+    int j = i == 2 ? 0 : i + 1;
+
+    for(int k = 0; k < 255; k += 1) 
     {
-      strip.setBrightness(bright_level[curr_bright_level]);
-      strip.setPixelColor(rand_nr, strip.Color(rand_nrR, rand_nrG, rand_nrB));
-      strip.show();
-      delay(10);
-    }    
- 
+      for(int i = 0; i < SAMPLING_RATE / 100; i++)
+      {
+        // Input check
+        check_button();
+        check_encoder();
+        
+        if(was_change)  {   break;  }
+      }
+        
+      rainbow_array[i] -= 1;
+      rainbow_array[j] += 1;
+      
+      set_color(rainbow_array[0], rainbow_array[1], rainbow_array[2]);
+    }
+  }    
 }
 
 void program_U3() // user program No. 3
