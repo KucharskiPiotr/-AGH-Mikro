@@ -101,11 +101,45 @@ void program_U2() // user program No. 2
 }
 
 void program_U3() // user program No. 3
-
-// idk what to do
+                  // dot moving around from left to right side of led strip
 
 {
-  
+  for(int i = 0; i < 8; i++)
+  {
+    if(light == true)
+    {
+      strip.setBrightness(5);
+      strip.setPixelColor(i, strip.Color(0, 0, 255));
+      strip.show();
+      delay(150);
+      strip.setBrightness(0);
+    }
+    else 
+    {
+      break;
+    }
+  }
+  for(int j = 7; j > 0; j--)
+  {
+    if(light == true)
+    {
+      if(j != 7)
+      {
+        strip.setBrightness(5);
+        strip.setPixelColor(j, strip.Color(0, 0, 255));
+        strip.show();
+        delay(150);
+        strip.setBrightness(0);
+      }
+      else
+      {
+        strip.setBrightness(5);
+        strip.setPixelColor(j, strip.Color(255, 0, 0));
+        strip.show();
+        strip.setBrightness(0);
+      }
+    }
+  }
 }
 
 //////////////////////////////////
