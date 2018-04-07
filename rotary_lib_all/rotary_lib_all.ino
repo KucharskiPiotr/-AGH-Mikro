@@ -12,6 +12,7 @@
 #define MAX_BRIGHT 100
 #define MIN_BRIGHT 10
 #define MAX_LEVELS_SIZE 64    // pow(2, 6)
+#define SAMPLING_RATE 2000
 
 /************************ Global variables *************************/
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_LED, LED_PORT, NEO_GRB + NEO_KHZ800);
@@ -30,6 +31,10 @@ bool U3 = false;
 int bright_level[MAX_LEVELS_SIZE];
 int curr_bright_level = 0;
 int max_curr_bright_level = pow(2, (int)K) - 1;
+
+bool was_change = false;
+
+unsigned long timer;
 
 /**************************** MAIN *********************************/
 void setup() 
@@ -56,10 +61,16 @@ void loop()
 {
   // Set max brightness index for table
   max_curr_bright_level = pow(2, (int)K);
+  // delay(1); ustawić licznik obrotów, DODAĆ PRÓBKOWANIE
 
-  // Input check
-  check_button();
-  check_encoder();
+  for(int i = 0; i < SAMPLING_RATE; i++)
+  {
+    // Input check
+    check_button();
+    check_encoder();
+    
+    if(was_change)  {   break;  }
+  }
 
   // User programs
   if(!is_changing_K)
@@ -104,12 +115,12 @@ void check_button()
     else
     {
       // Button is pushed without K control
-      if(U1 || U2 || U3)
-      {
-        button_down_counter += 500;
-      }
-      else { button_down_counter += 0.1; }
-
+//      if(U1 || U2 || U3)
+//      {
+//        button_down_counter += 1.5;
+//      }
+//      else { button_down_counter += 0.1; }
+      button_down_counter += 0.1;
       Serial.println(button_down_counter);
   
       // Button is down for long push (K control)
@@ -126,7 +137,7 @@ void check_button()
       } 
     }
   }
-  else
+  else    
   {
     if(!is_changing_K)
     {
@@ -142,7 +153,6 @@ void check_button()
         set_program();
         //change_program = true;
         //thr_controller.remove(&led_thr);
-        
       }
     }
     else
@@ -168,7 +178,7 @@ void check_encoder()
       Serial.println(new_pos);
       if(is_changing_K)       // K is being set -> K++
       {
-        if(K < 6) { Serial.println("K++"); K += 0.5; set_K(); }
+        if(K < 6) { Serial.println("K++"); K += 1.0; set_K(); }
       }
       else                    // Brightnes is being set -> Bright++
       {
@@ -184,7 +194,7 @@ void check_encoder()
       Serial.println(new_pos);
       if(is_changing_K)       // K is being set -> K--
       {
-        if(K > 2) { Serial.println("K--"); K -= 0.5; set_K(); }
+        if(K > 2) { Serial.println("K--"); K -= 1.0; set_K(); }
       }
       else                    // Brightnes is being set -> Bright--
       {
@@ -197,6 +207,11 @@ void check_encoder()
     }
     Serial.println(curr_bright_level);
     last_pos = new_pos;       // Set current position as old one bor next turn
+    was_change = true;
+  }
+  else
+  {
+    was_change = false;
   }
 }
 
@@ -356,20 +371,35 @@ void program_U1() // user program No. 1
       strip.setBrightness(bright_level[curr_bright_level]);
       strip.setPixelColor(i, strip.Color(255, 0, 0));
       strip.show();
-      check_button();
-      check_encoder();
-      delay(50);
-      strip.setBrightness(0);
+      for(int i = 0; i < SAMPLING_RATE; i++)
+      {
+        // Input check
+        check_button();
+        check_encoder();
+        
+        if(was_change)  {   break;  }
+      }
+//      delay(50);
+      timer = millis();
+      while(millis() - timer < 80UL) {}
+      strip.setBrightness(0); 
     }
     else
     {
       strip.setBrightness(bright_level[curr_bright_level]);
       strip.setPixelColor(i, strip.Color(0, 0, 255));
       strip.show();
-      check_button();
-      check_encoder();
-      delay(50);
-      strip.setBrightness(0);
+      for(int i = 0; i < SAMPLING_RATE; i++)
+      {
+        // Input check
+        check_button();
+        check_encoder();
+        
+        if(was_change)  {   break;  }
+      }
+      timer = millis();
+      while(millis() - timer < 80UL) {}
+      strip.setBrightness(0); 
     }
     check_button();
   }
