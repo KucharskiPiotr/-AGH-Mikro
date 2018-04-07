@@ -508,7 +508,7 @@ void program_U3() // user program No. 3
       else
       {
         strip.setBrightness(5);
-        strip.setPixelColor(j, strip.Color(255, 0, 0));
+        strip.setPixelColor(j, strip.Color(0, 0, 255));
         strip.show();
         strip.setBrightness(0);
       }
