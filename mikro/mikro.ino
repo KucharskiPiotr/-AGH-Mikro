@@ -23,11 +23,6 @@ void set_color(int R, int G, int B) // main function, which sets colors on LED s
   }
 }
 
-void set_K(int k)
-{
-  
-}
-
 void program_R() // setting RED color
 {
   set_color(255, 0, 0);
@@ -59,6 +54,7 @@ void program_GB() // setting GREEN and BLUE colors
 }
 
 void program_U1() // user program No. 1
+                  // red and blue led lights alternately
 {
   int i = 0;
   for(i = 0; i < 8; i++)
@@ -83,25 +79,31 @@ void program_U1() // user program No. 1
 }
 
 void program_U2() // user program No. 2
+                  // rainbow led lights 
 {
-  while(true)
-  {
-    int i = 0;
-    int rand_nr = random(0, 8);
-    int rand_nrR = random(10, 50);
-    int rand_nrG = random(10, 50);
-    int rand_nrB = random(10, 50);
-    for(i = 0; i < 8; i++)
+    unsigned int rainbow_array[3];
+    rainbow_array[0] = 255;
+    rainbow_array[1] = 0;
+    rainbow_array[2] = 0;
+    
+    for(int i = 0; i < 3; i++)
     {
-      strip.setBrightness(10);
-      strip.setPixelColor(rand_nr, strip.Color(rand_nrR, rand_nrG, rand_nrB));
-      strip.show();
-      delay(10);
-    }    
-  }
+      int j = i == 2 ? 0 : i + 1;
+
+      for(int k = 0; k < 255; k += 1) 
+      {
+      rainbow_array[i] -= 1;
+      rainbow_array[j] += 1;
+      
+      set_color(rainbow_array[0], rainbow_array[1], rainbow_array[2]);
+      }
+    }
 }
 
 void program_U3() // user program No. 3
+
+// idk what to do
+
 {
   
 }
@@ -110,5 +112,5 @@ void program_U3() // user program No. 3
 
 void loop() 
 {
-  program_U1();
+  program_U2();
 }
