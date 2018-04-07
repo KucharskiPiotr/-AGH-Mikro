@@ -27,6 +27,7 @@ bool is_changing_K = false;
 bool U1 = false;
 bool U2 = false;
 bool U3 = false;
+bool light = false;
 
 int bright_level[MAX_LEVELS_SIZE];
 int curr_bright_level = 0;
@@ -76,11 +77,9 @@ void loop()
   // User programs
   if(!is_changing_K)
   {
-    x = millis();
     if(U1) {  Serial.print("loop: U1, button_down_counter = "); Serial.println(button_down_counter); program_U1(); }
     if(U2) {  Serial.print("loop: U2, button_down_counter = "); Serial.println(button_down_counter); program_U2(); }
     if(U3) {  Serial.print("loop: U3, button_down_counter = "); Serial.println(button_down_counter); program_U3(); } 
-    Serial.println(millis() - x);
   }
 }
 
@@ -129,14 +128,25 @@ void check_button()
       // Button is down for long push (K control)
       if(button_down_counter >= 30)
       {
-        // DEBUG
-        Serial.println("K change sequence triggered");
-        delay(1000);
-
-        is_changing_K = true;
-        button_down_counter = 0;
-        // K change sequence
-        set_K();
+        if(U3)                // Change program by long click in program U3
+        {
+          Serial.println("Changing program from U3");
+          delay(1000);
+          led_program++;
+          button_down_counter = 0;
+          set_program();
+        }
+        else
+        {
+          // DEBUG
+          Serial.println("K change sequence triggered");
+          delay(1000);
+  
+          is_changing_K = true;
+          button_down_counter = 0;
+          // K change sequence
+          set_K();
+        }
       } 
     }
   }
@@ -147,15 +157,25 @@ void check_button()
       // Short click for LED program
       if(button_down_counter > 2)
       {
-        // DEBUG
-        Serial.println("Change LED mode triggered");
-  
-        // Change LED program
-        led_program++;
-        button_down_counter = 0;
-        set_program();
-        //change_program = true;
-        //thr_controller.remove(&led_thr);
+        if(U3)              // Program U3 light toggle
+        {
+          button_down_counter = 0;
+          light = !light;
+          Serial.print("Now light is: ");
+          Serial.println(light);
+        }
+        else
+        {
+          // DEBUG
+          Serial.println("Change LED mode triggered");
+    
+          // Change LED program
+          led_program++;
+          button_down_counter = 0;
+          set_program();
+          //change_program = true;
+          //thr_controller.remove(&led_thr);
+        }
       }
     }
     else
@@ -309,6 +329,7 @@ void set_program()
         U1 = false;
         U2 = false;
         U3 = true;
+        light = true;
         //program_U3();
         break;
       default:
@@ -441,7 +462,58 @@ void program_U2() // user program No. 2
 
 void program_U3() // user program No. 3
 {
-  
+  for(int i = 0; i < 8; i++)
+  {
+    if(light == true)
+    {
+      strip.setBrightness(bright_level[curr_bright_level]);
+      strip.setPixelColor(i, strip.Color(0, 0, 255));
+      strip.show();
+      for(int i = 0; i < SAMPLING_RATE; i++)
+      {
+        // Input check
+        check_button();
+        check_encoder();
+        
+        if(was_change)  {   break;  }
+      }
+      delay(100);
+      strip.setBrightness(0);
+    }
+    else 
+    {
+      break;
+    }
+  }
+  for(int j = 7; j > 0; j--)
+  {
+    if(light == true)
+    {
+      if(j != 7)
+      {
+        strip.setBrightness(bright_level[curr_bright_level]);
+        strip.setPixelColor(j, strip.Color(0, 0, 255));
+        strip.show();
+        for(int i = 0; i < SAMPLING_RATE; i++)
+        {
+          // Input check
+          check_button();
+          check_encoder();
+          
+          if(was_change)  {   break;  }
+        }
+        delay(100);
+        strip.setBrightness(0);
+      }
+      else
+      {
+        strip.setBrightness(5);
+        strip.setPixelColor(j, strip.Color(255, 0, 0));
+        strip.show();
+        strip.setBrightness(0);
+      }
+    }
+  }
 }
 
 
