@@ -28,6 +28,8 @@ bool U1 = false;
 bool U2 = false;
 bool U3 = false;
 bool light = false;
+int curr_u3_led = 0;
+bool is_up = true;
 
 int bright_level[MAX_LEVELS_SIZE];
 int curr_bright_level = 0;
@@ -64,7 +66,9 @@ void loop()
   // Set max brightness index for table
   max_curr_bright_level = pow(2, (int)K);
   // delay(1); ustawić licznik obrotów, DODAĆ PRÓBKOWANIE
-
+  was_change = false;
+  strip.setBrightness(bright_level[curr_bright_level]);
+  
   for(int i = 0; i < SAMPLING_RATE; i++)
   {
     // Input check
@@ -78,8 +82,9 @@ void loop()
   if(!is_changing_K)
   {
     if(U1) {  Serial.print("loop: U1, button_down_counter = "); Serial.println(button_down_counter); program_U1(); }
-    if(U2) {  Serial.print("loop: U2, button_down_counter = "); Serial.println(button_down_counter); program_U2(); }
-    if(U3) {  Serial.print("loop: U3, button_down_counter = "); Serial.println(button_down_counter); program_U3(); } 
+    else if(U2) {  Serial.print("loop: U2, button_down_counter = "); Serial.println(button_down_counter); program_U2(); }
+    else if(U3) {  Serial.print("loop: U3, button_down_counter = "); Serial.println(button_down_counter); program_U3(curr_u3_led, is_up); } 
+    else { Serial.println("set_program()"); set_program(); }
   }
 }
 
@@ -113,6 +118,7 @@ void check_button()
       button_down_counter = 0;
       delay(200);
       is_changing_K = false;
+      set_program();
     }
     else
     {
@@ -122,7 +128,14 @@ void check_button()
 //        button_down_counter += 1.5;
 //      }
 //      else { button_down_counter += 0.1; }
-      button_down_counter += 0.1;
+      if(U3)
+      {
+        button_down_counter += 0.5;
+      }
+      else
+      {
+        button_down_counter += 0.1; 
+      }
       Serial.println(button_down_counter);
   
       // Button is down for long push (K control)
@@ -155,7 +168,7 @@ void check_button()
     if(!is_changing_K)
     {
       // Short click for LED program
-      if(button_down_counter > 2)
+      if(button_down_counter > 1)
       {
         if(U3)              // Program U3 light toggle
         {
@@ -173,6 +186,7 @@ void check_button()
           led_program++;
           button_down_counter = 0;
           set_program();
+          was_change = true;
           //change_program = true;
           //thr_controller.remove(&led_thr);
         }
@@ -199,6 +213,7 @@ void check_encoder()
     if(new_pos < last_pos)    // Clockwise turn
     {
       Serial.println(new_pos);
+      Serial.println(is_changing_K);
       if(is_changing_K)       // K is being set -> K++
       {
         if(K < 6) { Serial.println("K++"); K += 1.0; set_K(); }
@@ -385,46 +400,51 @@ void program_GB() // setting GREEN and BLUE colors
 void program_U1() // user program No. 1
                   // red and blue led lights alternately
 {
-  int i = 0;
-  for(i = 0; i < 8; i++)
+  if(!is_changing_K)
   {
-    if(i % 2 == 0)
+    int i = 0;
+    for(i = 0; i < 8; i++)
     {
-      strip.setBrightness(bright_level[curr_bright_level]);
-      strip.setPixelColor(i, strip.Color(255, 0, 0));
-      strip.show();
-      
-      for(int i = 0; i < SAMPLING_RATE; i++)
+      if(i % 2 == 0)
       {
-        // Input check
-        check_button();
-        check_encoder();
+        strip.setBrightness(bright_level[curr_bright_level]);
+        strip.setPixelColor(i, strip.Color(255, 0, 0));
+        strip.show();
         
-        if(was_change)  {   break;  }
+        for(int i = 0; i < SAMPLING_RATE; i++)
+        {
+          // Input check
+          check_button();
+          check_encoder();
+          
+          if(was_change)  {   break;  }
+        }
+        if(is_changing_K) {   return;  }
+        
+        timer = millis();
+        while(millis() - timer < 80UL) {}
+        strip.setBrightness(0); 
       }
-      
-      timer = millis();
-      while(millis() - timer < 80UL) {}
-      strip.setBrightness(0); 
-    }
-    else
-    {
-      strip.setBrightness(bright_level[curr_bright_level]);
-      strip.setPixelColor(i, strip.Color(0, 0, 255));
-      strip.show();
-
-      for(int i = 0; i < SAMPLING_RATE; i++)
+      else
       {
-        // Input check
-        check_button();
-        check_encoder();
+        strip.setBrightness(bright_level[curr_bright_level]);
+        strip.setPixelColor(i, strip.Color(0, 0, 255));
+        strip.show();
+  
+        for(int i = 0; i < SAMPLING_RATE; i++)
+        {
+          // Input check
+          check_button();
+          check_encoder();
+          
+          if(was_change)  {   break;  }
+        }
+        if(is_changing_K) {   return;  }
         
-        if(was_change)  {   break;  }
+        timer = millis();
+        while(millis() - timer < 80UL) {}
+        strip.setBrightness(0); 
       }
-      
-      timer = millis();
-      while(millis() - timer < 80UL) {}
-      strip.setBrightness(0); 
     }
   }
 }
@@ -432,69 +452,52 @@ void program_U1() // user program No. 1
 void program_U2() // user program No. 2
                   // rainbow led lights 
 {
-  unsigned int rainbow_array[3];
-  rainbow_array[0] = 255;
-  rainbow_array[1] = 0;
-  rainbow_array[2] = 0;
-  
-  for(int i = 0; i < 3; i++)
+  if(!is_changing_K)
   {
-    int j = i == 2 ? 0 : i + 1;
-
-    for(int k = 0; k < 255; k += 1) 
+    unsigned int rainbow_array[3];
+    rainbow_array[0] = 255;
+    rainbow_array[1] = 0;
+    rainbow_array[2] = 0;
+    
+    for(int i = 0; i < 3; i++)
     {
-      for(int i = 0; i < SAMPLING_RATE / 100; i++)
+      int j = i == 2 ? 0 : i + 1;
+  
+      for(int k = 0; k < 255; k += 1) 
       {
-        // Input check
-        check_button();
-        check_encoder();
+        for(int i = 0; i < SAMPLING_RATE / 100; i++)
+        {
+          // Input check
+          check_button();
+          check_encoder();
+          
+          if(was_change)  {   break;  }
+        }
+        if(is_changing_K) {   return;  }
+          
+        rainbow_array[i] -= 1;
+        rainbow_array[j] += 1;
         
-        if(was_change)  {   break;  }
+        set_color(rainbow_array[0], rainbow_array[1], rainbow_array[2]);
       }
-        
-      rainbow_array[i] -= 1;
-      rainbow_array[j] += 1;
+    }  
+  }
       
-      set_color(rainbow_array[0], rainbow_array[1], rainbow_array[2]);
-    }
-  }    
 }
 
-void program_U3() // user program No. 3
+void program_U3(int starting_led, bool up) // user program No. 3
 {
-  for(int i = 0; i < 8; i++)
+  if(up)       // up the led
   {
-    if(light == true)
+    for(int i = starting_led; i < 8; i++)
     {
-      strip.setBrightness(bright_level[curr_bright_level]);
-      strip.setPixelColor(i, strip.Color(0, 0, 255));
-      strip.show();
-      for(int i = 0; i < SAMPLING_RATE; i++)
+      if(light == true)
       {
-        // Input check
-        check_button();
-        check_encoder();
-        
-        if(was_change)  {   break;  }
-      }
-      delay(100);
-      strip.setBrightness(0);
-    }
-    else 
-    {
-      break;
-    }
-  }
-  for(int j = 7; j > 0; j--)
-  {
-    if(light == true)
-    {
-      if(j != 7)
-      {
+        curr_u3_led = i;
         strip.setBrightness(bright_level[curr_bright_level]);
-        strip.setPixelColor(j, strip.Color(0, 0, 255));
+        strip.setPixelColor(i, strip.Color(0, 0, 255));
         strip.show();
-        for(int i = 0; i < SAMPLING_RATE; i++)
+        for(int i = 0; i < SAMPLING_RATE / 1000; i++)
         {
           // Input check
           check_button();
@@ -505,13 +508,55 @@ void program_U3() // user program No. 3
         delay(100);
         strip.setBrightness(0);
       }
+      else 
+      {
+        continue;
+      }
+    }  
+    if(curr_u3_led == N_LED - 1)
+    {
+      is_up = false;
+    }
+  }
+  else          // down the led
+  {
+    for(int j = starting_led; j >= 0; j--)
+    {
+      if(light == true)
+      {
+        curr_u3_led = j;
+        if(j != 7)
+        {
+          strip.setBrightness(bright_level[curr_bright_level]);
+          strip.setPixelColor(j, strip.Color(0, 0, 255));
+          strip.show();
+          for(int i = 0; i < SAMPLING_RATE / 1000; i++)
+          {
+            // Input check
+            check_button();
+            check_encoder();
+            
+            if(was_change)  {   break;  }
+          }
+          delay(100);
+          strip.setBrightness(0);
+        }
+        else
+        {
+          strip.setBrightness(bright_level[curr_bright_level]);
+          strip.setPixelColor(j, strip.Color(0, 0, 255));
+          strip.show();
+          strip.setBrightness(0);
+        }
+      }
       else
       {
-        strip.setBrightness(5);
-        strip.setPixelColor(j, strip.Color(0, 0, 255));
-        strip.show();
-        strip.setBrightness(0);
+        continue;
       }
+    }
+    if(curr_u3_led == 0)
+    {
+      is_up = true;  
     }
   }
 }
