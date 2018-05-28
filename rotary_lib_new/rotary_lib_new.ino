@@ -1,5 +1,5 @@
-#include <Adafruit_NeoPixel.h>    // LED strip
-#include <RotaryEncoder.h>        // Rotary encoder
+#include <Adafruit_NeoPixel.h>
+#include <RotaryEncoder.h>
 
 // PORTS
 #define ROTARY_A 5
@@ -11,10 +11,11 @@
 // MAX/MIN VALUES
 #define MAX_BRIGHT 255
 #define MIN_BRIGHT 10
-#define MAX_LEVELS_SIZE 128    // 2*pow(2, 6)
 #define SAMPLING_RATE 2000
 
-/************************ Global variables *************************/
+/*
+ *  GLOBAL VARIABLES
+ */
 
 // LED Strip variable based on Adafruit_NeoPixel library
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_LED, LED_PORT, NEO_GRB + NEO_KHZ800);
@@ -28,6 +29,7 @@ int last_pos = -1;              // variable for left-right recognition
 float K = 2;                    // K is in range 2 to 6
 int led_program = 0;
 
+// Control flags
 bool is_changing_K = false;     // variable for K setting sequence recognition
 bool U1 = false;                // User programs bools
 bool U2 = false;
@@ -35,19 +37,18 @@ bool U3 = false;
 bool light = false;             // bool for U3 program   
 int curr_u3_led = 0;            // current led of U3 program that is turned on
 bool is_up = true;              // bool for U3 program to go led up
+bool was_change = false;         // variable checks if there was a change from input
 
-int bright_level[MAX_LEVELS_SIZE];              // Array of brightness levels
-int curr_bright_level = 0;
-int max_curr_bright_level = pow(2, (int)K) - 1;
-
-bool was_change = false;        // variable checks if there was a change from input
 unsigned long x = 0;
-
-unsigned char *brightness;
-
 unsigned long timer;
 
-/**************************** MAIN *********************************/
+unsigned int bright_offset = 0;
+unsigned int brightness[N_LED];
+
+
+/*
+ *  MAIN PROGRAM
+ */ 
 
 /*
  * Setup of the board and inputs, setting default values of 
@@ -55,29 +56,19 @@ unsigned long timer;
  */
 void setup() 
 {
-  // Serial communication is for debugging
-  Serial.begin(9600);
+    // Serial communication for debugging
+    Serial.begin(9600);
 
-  // Button from encoder initialization
-  pinMode(BUTTON, INPUT);
+    // Button from encoder initialization
+    pinMode(BUTTON, INPUT);
 
-  brightness = (unsigned char*) malloc(pow(2,(int)K) * sizeof(unsigned char));
-  if(brightness == NULL)
-  {
-    Serial.println("Failed to allocate memory for brightness");
-    return;
-  }
+    // Led initialization
+    strip.begin();
+    set_brightness();
+    strip.show();
 
-  // Brightness level initialization
-  calc_brightness_levels();
-
-  // Led initialization
-  strip.begin();
-  strip.setBrightness(bright_level[curr_bright_level]);
-  strip.show();
-
-  // Set first program to leds
-  set_program();
+    // Set first program to LEDs
+    set_program();
 }
 
 /*
@@ -86,16 +77,12 @@ void setup()
  * change form inputs
  */
 void loop() 
-{
-  // Set max brightness index for table
-  max_curr_bright_level = pow(2, (int)K);
-  
+{ 
   // Check if there was a change in program/encoder
   was_change = false;
 
   // Set brightness of LED strip as current brightness level in table
   // based on K value
-  strip.setBrightness(bright_level[curr_bright_level]);
   
   // For loop is for sampling the input to be granted more than one
   // CPU cycle for input check
@@ -120,38 +107,11 @@ void loop()
 }
 
 /*******************************************************************/
-void calc_brightness_levels()
-{
-  Serial.print("In calc_brightness_levels, size: ");
-  Serial.println(pow(2, (int)K));
-
-  if(brightness == NULL)
-  {
-    Serial.println("Brightness is NULL!");
-    return;
-  }
-  
-  for(int i = 0; i < 2 * pow(2, (int)K); i++)
-  {
-    /*bright_level[i] = MIN_BRIGHT + (i * ((MAX_BRIGHT - MIN_BRIGHT) / (pow(2, (int)K) - 1)));  
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.println(bright_level[i]);*/
-    brightness[i] = MIN_BRIGHT + (i * ((MAX_BRIGHT - MIN_BRIGHT) / (pow(2,(int)K) - 1)));
-    Serial.print(i);
-    Serial.print(": ");
-    Serial.println(brightness[i]);
-  }
-}
-
-/*******************************************************************/
-void set_brightness(int start_index)
+void set_brightness()
 {
   for(int i = 0; i < N_LED; i++)
   {
-    /*Serial.print(i);
-    Serial.print(". pixel color: ");
-    Serial.println(strip.getPixelColor(i));*/
+    brightness[i] = ((unsigned int)((MAX_BRIGHT - MIN_BRIGHT) / (unsigned int)(pow(2, (int)K) - 1))) * ((unsigned int)(i + bright_offset) % (unsigned int)pow(2, (int)K)) + MIN_BRIGHT;
   }
 }
 
@@ -272,10 +232,10 @@ void check_encoder()
       }
       else                    // Brightnes is being set -> Bright++
       {
-        if(curr_bright_level < max_curr_bright_level) 
+        if(bright_offset < N_LED) 
         {
           Serial.print("Bright++: "); 
-          curr_bright_level++; 
+          bright_offset++; 
         }
       }
     }
@@ -288,14 +248,14 @@ void check_encoder()
       }
       else                    // Brightnes is being set -> Bright--
       {
-        if(curr_bright_level > 0) 
+        if(bright_offset > -N_LED) 
         {
           Serial.print("Bright--: ");
-          curr_bright_level--; 
+          bright_offset--; 
         }
       }
     }
-    Serial.println(curr_bright_level);
+    Serial.println(bright_offset);
     last_pos = new_pos;       // Set current position as old one bor next turn
     was_change = true;
   }
@@ -326,8 +286,6 @@ void set_K()
     strip.setPixelColor(i, 255,255,255);
     strip.show();
   }
-
-  calc_brightness_levels();
 }
 
 /*******************************************************************/
@@ -413,12 +371,15 @@ void set_color(int R, int G, int B) // main function, which sets colors on LED s
   int i = 0;
   for(i = 0; i < 8; i++)
   {
-    strip.setBrightness(bright_level[curr_bright_level]);
+    R *= (brightness[i] / MAX_BRIGHT);
+    G *= (brightness[i] / MAX_BRIGHT);
+    B *= (brightness[i] / MAX_BRIGHT);
+
     strip.setPixelColor(i, strip.Color(R, G, B));
     strip.show();
   }
 
-  set_brightness(0);
+  set_brightness();
 }
 
 void program_R() // setting RED color
@@ -461,7 +422,7 @@ void program_U1() // user program No. 1
     {
       if(i % 2 == 0)
       {
-        strip.setBrightness(bright_level[curr_bright_level]);
+        strip.setBrightness(MAX_BRIGHT);
         strip.setPixelColor(i, strip.Color(255, 0, 0));
         strip.show();
         
@@ -481,7 +442,7 @@ void program_U1() // user program No. 1
       }
       else
       {
-        strip.setBrightness(bright_level[curr_bright_level]);
+        strip.setBrightness(MAX_BRIGHT);
         strip.setPixelColor(i, strip.Color(0, 0, 255));
         strip.show();
   
@@ -548,7 +509,7 @@ void program_U3(int starting_led, bool up) // user program No. 3
       if(light == true)
       {
         curr_u3_led = i;
-        strip.setBrightness(bright_level[curr_bright_level]);
+        strip.setBrightness(MAX_BRIGHT);
         strip.setPixelColor(i, strip.Color(0, 0, 255));
         strip.show();
         for(int i = 0; i < SAMPLING_RATE / 1000; i++)
@@ -581,7 +542,7 @@ void program_U3(int starting_led, bool up) // user program No. 3
         curr_u3_led = j;
         if(j != 7)
         {
-          strip.setBrightness(bright_level[curr_bright_level]);
+          strip.setBrightness(MAX_BRIGHT);
           strip.setPixelColor(j, strip.Color(0, 0, 255));
           strip.show();
           for(int i = 0; i < SAMPLING_RATE / 1000; i++)
@@ -597,7 +558,7 @@ void program_U3(int starting_led, bool up) // user program No. 3
         }
         else
         {
-          strip.setBrightness(bright_level[curr_bright_level]);
+          strip.setBrightness(MAX_BRIGHT);
           strip.setPixelColor(j, strip.Color(0, 0, 255));
           strip.show();
           strip.setBrightness(0);
