@@ -13,6 +13,7 @@
 #define MIN_BRIGHT 10
 #define SAMPLING_RATE 2000
 #define TMP_BRIGHT 50
+#define DISTANCE (MAX_BRIGHT - MIN_BRIGHT)
 
 /*
  *  GLOBAL VARIABLES
@@ -27,8 +28,8 @@ RotaryEncoder encoder(ROTARY_A, ROTARY_B);
 // Variable counts time of button down, used for long-short click recognition
 float button_down_counter = 0;
 int last_pos = -1;              // variable for left-right recognition
-float K = 2;                    // K is in range 2 to 6
-int led_program = 0;
+unsigned char K = 2;                    // K is in range 2 to 6
+unsigned char led_program = 0;
 
 // Control flags
 bool is_changing_K = false;     // variable for K setting sequence recognition
@@ -39,13 +40,8 @@ bool light = false;             // bool for U3 program
 int curr_u3_led = 0;            // current led of U3 program that is turned on
 bool is_up = true;              // bool for U3 program to go led up
 bool was_change = false;         // variable checks if there was a change from input
-bool bright_up = true;
-
-unsigned long x = 0;
-unsigned long timer;
 
 signed char bright_offset = 0;
-unsigned char brightness[N_LED];
 
 
 /*
@@ -67,7 +63,7 @@ void setup()
     // Led initialization
     strip.begin();
     strip.setBrightness(TMP_BRIGHT);
-    set_brightness();
+    // set_brightness();
     strip.show();
 
     // Set first program to LEDs
@@ -117,10 +113,10 @@ void set_brightness()
   
   for(int i = 0; i < N_LED; i++)
   {
-    brightness[i] = ((unsigned int)((MAX_BRIGHT - MIN_BRIGHT) / (int)(pow(2, (int)K) - 1))) * ((int)(abs(i + bright_offset)) % (unsigned int)pow(2, (int)K)) + MIN_BRIGHT;
+    //brightness[i] = ((unsigned int)((MAX_BRIGHT - MIN_BRIGHT) / (int)(pow(2, (int)K) - 1))) * ((int)(abs(i + bright_offset)) % (unsigned int)pow(2, (int)K)) + MIN_BRIGHT;
     Serial.print(i);
     Serial.print(": ");
-    Serial.println(brightness[i]); 
+//    Serial.println(brightness[i]); 
   }
 }
 
@@ -238,22 +234,16 @@ void check_encoder()
       Serial.println(is_changing_K);
       if(is_changing_K)       // K is being set -> K++
       {
-        if(K < 6) { Serial.println("K++"); K += 1.0; set_K(); }
+        if(K < 6) { Serial.println("K++"); K += 1; set_K(); }
       }
       else                    // Brightnes is being set -> Bright++
       {
-        if(bright_offset < N_LED)
+        if(bright_offset < (2 * pow(2, K) - N_LED))
         {
           Serial.print("Bright++: ");
           bright_offset++;
         }
-        else
-        {
-          Serial.print("Bright_off = 0");
-          bright_offset = 0;
-        }
-
-        set_brightness();
+        // set_brightness();
       }
     }
     else                      // Counterclockwise turn
@@ -261,22 +251,16 @@ void check_encoder()
       Serial.println(new_pos);
       if(is_changing_K)       // K is being set -> K--
       {
-        if(K > 2) { Serial.println("K--"); K -= 1.0; set_K(); }
+        if(K > 2) { Serial.println("K--"); K -= 1; set_K(); }
       }
       else                    // Brightnes is being set -> Bright--
       {
-        if(bright_offset > -(N_LED)) 
+        if(bright_offset > 0 /** 2*/) 
         {
           Serial.print("Bright--: ");
           bright_offset--; 
         }
-        else
-        {
-          Serial.print("Bright_off = 0");
-          bright_offset = 0;
-        }
-        
-        set_brightness();
+        // set_brightness();
       }
     }
     Serial.println(bright_offset);
@@ -311,7 +295,7 @@ void set_K()
     strip.show();
   }
 
-  set_brightness();
+  // set_brightness();
 }
 
 /*******************************************************************/
@@ -368,6 +352,7 @@ void set_program()
         program_GB(); 
         break;
       case 6:
+        strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_U1");
         U1 = true;
         U2 = false;
@@ -375,6 +360,7 @@ void set_program()
         //program_U1();
         break;
       case 7:
+        strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_U2");
         U1 = false;
         U2 = true;
@@ -382,6 +368,7 @@ void set_program()
         //program_U2();
         break;
       case 8:
+        strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_U3");
         U1 = false;
         U2 = false;
@@ -396,28 +383,53 @@ void set_program()
 }
 
 /*******************************************************************/
+unsigned char calc_brightness(unsigned char i)
+{
+    if((i + bright_offset) < pow(2, K))
+    {
+      return MIN_BRIGHT + (((i + bright_offset) * DISTANCE)/(pow(2,K) - 1));
+    }
+    else
+    {
+      return MAX_BRIGHT - (((i + bright_offset - pow(2, K)) * DISTANCE)/(pow(2,K) - 1));
+    }
+}
+
+/*******************************************************************/
 /************************ Led Programs *****************************/
 /*******************************************************************/
 void set_color(int R, int G, int B) // main function, which sets colors on LED strip
 {
   int i = 0;
-  unsigned int tmpR = 0;
-  unsigned int tmpG = 0;
-  unsigned int tmpB = 0;
+  unsigned char tmpR = 0;
+  unsigned char tmpG = 0;
+  unsigned char tmpB = 0;
   
   for(i = 0; i < N_LED; i++)
   {
-    tmpR = (R * brightness[i]) / MAX_BRIGHT;
-    tmpG = (G * brightness[i]) / MAX_BRIGHT;
-    tmpB = (B * brightness[i]) / MAX_BRIGHT;
-
+//    Serial.print(i);
+//    Serial.print(": calc_bright: ");
+//    Serial.println(calc_brightness(i));
+    if(!U2)
+    {
+      tmpR = (R * calc_brightness(i)) / MAX_BRIGHT;
+      tmpG = (G * calc_brightness(i)) / MAX_BRIGHT;
+      tmpB = (B * calc_brightness(i)) / MAX_BRIGHT;
+    }
+    else
+    {
+      tmpR = R;
+      tmpG = G;
+      tmpB = B;
+    }
+    
     /*Serial.print(i);
     Serial.print(": ");
-    Serial.print(R);
+    Serial.print(tmpR);
     Serial.print(", ");
-    Serial.print(G);
+    Serial.print(tmpG);
     Serial.print(", ");
-    Serial.println(B);*/
+    Serial.println(tmpB);*/
 
     strip.setPixelColor(i, strip.Color(tmpR, tmpG, tmpB));
     strip.show();
@@ -480,8 +492,7 @@ void program_U1() // user program No. 1
         }
         if(is_changing_K) {   return;  }
         
-        timer = millis();
-        while(millis() - timer < 80UL) {}
+        delay(80);
         strip.setBrightness(0); 
       }
       else
@@ -500,8 +511,8 @@ void program_U1() // user program No. 1
         }
         if(is_changing_K) {   return;  }
         
-        timer = millis();
-        while(millis() - timer < 80UL) {}
+        delay(80);
+        
         strip.setBrightness(0); 
       }
     }
@@ -511,6 +522,7 @@ void program_U1() // user program No. 1
 void program_U2() // user program No. 2
                   // rainbow led lights 
 {
+  
   if(!is_changing_K)
   {
     unsigned int rainbow_array[3];
@@ -537,6 +549,7 @@ void program_U2() // user program No. 2
         rainbow_array[i] -= 1;
         rainbow_array[j] += 1;
 
+        strip.setBrightness(TMP_BRIGHT);
         set_color(rainbow_array[0], rainbow_array[1], rainbow_array[2]);
       }
     }  
