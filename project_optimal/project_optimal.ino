@@ -15,6 +15,15 @@
 #define TMP_BRIGHT 50
 #define DISTANCE (MAX_BRIGHT - MIN_BRIGHT)
 
+// FLAGS (see description below)
+#define IS_CHANGING_K 7
+#define U1 6
+#define U2 5
+#define U3 4
+#define LIGHT 3
+#define IS_UP 2
+#define WAS_CHANGE 1
+
 /*
  *  GLOBAL VARIABLES
  */
@@ -31,17 +40,23 @@ int last_pos = -1;              // variable for left-right recognition
 unsigned char K = 2;                    // K is in range 2 to 6
 unsigned char led_program = 0;
 
-// Control flags
-bool is_changing_K = false;     // variable for K setting sequence recognition
-bool U1 = false;                // User programs bools
-bool U2 = false;
-bool U3 = false;
-bool light = false;             // bool for U3 program   
-int curr_u3_led = 0;            // current led of U3 program that is turned on
-bool is_up = true;              // bool for U3 program to go led up
-bool was_change = false;         // variable checks if there was a change from input
+// Control flags:
+// Lets try with storing all bools in one char for memory savings:
+// From most significat bit: 
+// is_changing_K, U1, U2, U3, light, is_up, was_change, NULL
+// In notation from least siginificant bit (for Arduino's bitSet() and bitClear()):
+// is_changing_K => 7   - flag checks if K is being set
+// U1 => 6              - is U1 program currently playing
+// U2 => 5              - is U2 program currently playing
+// U3 => 4              - is U3 program currently playing
+// light => 3           - flag for U3 program to display it correctly
+// is_up => 2           - as above
+// was_change => 1      - flag notfies if there was a change in input
+// NULL => 0            - additional bit (not used)
+unsigned char flags = 0b00000100;
 
-signed char bright_offset = 0;
+unsigned char curr_u3_led = 0;            // current led of U3 program that is turned on
+unsigned char bright_offset = 0;          // variable manipulates the light offset (in function of brightness)
 
 
 /*
@@ -63,7 +78,6 @@ void setup()
     // Led initialization
     strip.begin();
     strip.setBrightness(TMP_BRIGHT);
-    // set_brightness();
     strip.show();
 
     // Set first program to LEDs
@@ -78,7 +92,8 @@ void setup()
 void loop() 
 { 
   // Check if there was a change in program/encoder
-  was_change = false;
+  //was_change = false;
+  bitClear(flags, WAS_CHANGE);
 
   // Set brightness of LED strip as current brightness level in table
   // based on K value
@@ -92,31 +107,27 @@ void loop()
     check_encoder();
     
     // If there was any change there is no point in checking input
-    if(was_change)  {   break;  }
+    // if(was_change) {   break;  }
+    if(bitRead(flags, WAS_CHANGE) == 1)  {   break;  }
   }
 
   // Set LED strip program based on U1 U2 and U3 booleans
-  if(!is_changing_K)
+//  if(!is_changing_K)
+  if(bitRead(flags, IS_CHANGING_K) == 0)
   {
-    if(U1) {  Serial.print("loop: U1, button_down_counter = "); Serial.println(button_down_counter); program_U1(); }
-    else if(U2) {  Serial.print("loop: U2, button_down_counter = "); Serial.println(button_down_counter); program_U2(); }
-    else if(U3) {  Serial.print("loop: U3, button_down_counter = "); Serial.println(button_down_counter); program_U3(curr_u3_led, is_up); } 
-    else { /*Serial.println("set_program()");*/ set_program(); }
-  }
-}
-
-/*******************************************************************/
-void set_brightness()
-{
-  Serial.print("In set brightness, K = ");
-  Serial.println(K);
-  
-  for(int i = 0; i < N_LED; i++)
-  {
-    //brightness[i] = ((unsigned int)((MAX_BRIGHT - MIN_BRIGHT) / (int)(pow(2, (int)K) - 1))) * ((int)(abs(i + bright_offset)) % (unsigned int)pow(2, (int)K)) + MIN_BRIGHT;
-    Serial.print(i);
-    Serial.print(": ");
-//    Serial.println(brightness[i]); 
+    // if(U1)
+    // else if(U2)
+    // else if(U3)
+    if(bitRead(flags, U1) == 1) {  Serial.print("loop: U1, button_down_counter = "); Serial.println(button_down_counter); program_U1(); }
+    else if(bitRead(flags, U2) == 1) {  Serial.print("loop: U2, button_down_counter = "); Serial.println(button_down_counter); program_U2(); }
+    else if(bitRead(flags, U3) == 1) 
+    {  
+      Serial.print("loop: U3, button_down_counter = "); 
+      Serial.println(button_down_counter); 
+      if(bitRead(flags, IS_UP) == 1)  {   program_U3(curr_u3_led, true);  }
+      else  {   program_U3(curr_u3_led, false);    }
+    } 
+    else { set_program(); }
   }
 }
 
@@ -127,25 +138,23 @@ void check_button()
   if(digitalRead(BUTTON) == 0)
   {
     // Applay changes to K after button was clicked to approve
-    if(is_changing_K)
+    //if(is_changing_K)
+    if(bitRead(flags, IS_CHANGING_K) == 1)
     {
       // DEBUG
       Serial.println("K change sequence ended.");
 
       button_down_counter = 0;
       delay(200);
-      is_changing_K = false;
+//      is_changing_K = false;
+      bitClear(flags, IS_CHANGING_K);
       set_program();
     }
     else
     {
       // Button is pushed without K control
-//      if(U1 || U2 || U3)
-//      {
-//        button_down_counter += 1.5;
-//      }
-//      else { button_down_counter += 0.1; }
-      if(U3)
+//      if(U3)
+      if(bitRead(flags, U3) == 1)
       {
         button_down_counter += 0.5;
       }
@@ -158,7 +167,8 @@ void check_button()
       // Button is down for long push (K control)
       if(button_down_counter >= 30)
       {
-        if(U3)                // Change program by long click in program U3
+//        if(U3)                // Change program by long click in program U3
+        if(bitRead(flags, U3) == 1)
         {
           Serial.println("Changing program from U3");
           delay(1000);
@@ -173,7 +183,8 @@ void check_button()
           Serial.println("K change sequence triggered");
           delay(500);
   
-          is_changing_K = true;
+//          is_changing_K = true;
+          bitSet(flags, IS_CHANGING_K);
           button_down_counter = 0;
           // K change sequence
           set_K();
@@ -183,17 +194,20 @@ void check_button()
   }
   else    
   {
-    if(!is_changing_K)
+//    if(!is_changing_K)
+    if(bitRead(flags, IS_CHANGING_K) == 0)
     {
       // Short click for LED program
       if(button_down_counter > 1)
       {
-        if(U3)              // Program U3 light toggle
+//        if(U3)              // Program U3 light toggle
+        if(bitRead(flags, U3) == 1)
         {
           button_down_counter = 0;
-          light = !light;
+//          light = !light;
+          bitRead(flags, LIGHT) == 1  ?   bitClear(flags, LIGHT)  :   bitSet(flags, LIGHT);
           Serial.print("Now light is: ");
-          Serial.println(light);
+//          Serial.println(light);
         }
         else
         {
@@ -204,15 +218,15 @@ void check_button()
           led_program++;
           button_down_counter = 0;
           set_program();
-          was_change = true;
-          //change_program = true;
-          //thr_controller.remove(&led_thr);
+//          was_change = true;
+          bitSet(flags, WAS_CHANGE);
         }
       }
     }
     else
     {
-      is_changing_K = true;
+      // is_changing_K = true;
+      bitSet(flags, IS_CHANGING_K);
     }
   }
 }
@@ -231,8 +245,9 @@ void check_encoder()
     if(new_pos < last_pos)    // Clockwise turn
     {
       Serial.println(new_pos);
-      Serial.println(is_changing_K);
-      if(is_changing_K)       // K is being set -> K++
+//      Serial.println(is_changing_K);
+//      if(is_changing_K)       // K is being set -> K++
+      if(bitRead(flags, IS_CHANGING_K) == 1)
       {
         if(K < 6) { Serial.println("K++"); K += 1; set_K(); }
       }
@@ -243,13 +258,13 @@ void check_encoder()
           Serial.print("Bright++: ");
           bright_offset++;
         }
-        // set_brightness();
       }
     }
     else                      // Counterclockwise turn
     {
       Serial.println(new_pos);
-      if(is_changing_K)       // K is being set -> K--
+//      if(is_changing_K)       // K is being set -> K--
+      if(bitRead(flags, IS_CHANGING_K) == 1)
       {
         if(K > 2) { Serial.println("K--"); K -= 1; set_K(); }
       }
@@ -260,29 +275,31 @@ void check_encoder()
           Serial.print("Bright--: ");
           bright_offset--; 
         }
-        // set_brightness();
       }
     }
     Serial.println(bright_offset);
     last_pos = new_pos;       // Set current position as old one bor next turn
-    was_change = true;
+//    was_change = true;
+    bitSet(flags, WAS_CHANGE);
   }
   else
   {
-    was_change = false;
+//    was_change = false;
+    bitClear(flags, WAS_CHANGE);
   }
 }
 
 /*******************************************************************/
 void set_K()
 {
-  is_changing_K = true;
-
+//  is_changing_K = true;
+  bitSet(flags, IS_CHANGING_K);
+  
   // Debug
   Serial.print("In setK(): K is currently: ");
   Serial.println(K);
   Serial.print("Current isChangingK:");
-  Serial.println(is_changing_K);
+//  Serial.println(is_changing_K);
 
   for(int i = 0; i < N_LED; i++)
   {
@@ -294,8 +311,6 @@ void set_K()
     strip.setPixelColor(i, 255,255,255);
     strip.show();
   }
-
-  // set_brightness();
 }
 
 /*******************************************************************/
@@ -306,75 +321,100 @@ void set_program()
       case 0:
         strip.setBrightness(TMP_BRIGHT);
         //Serial.println("program_R");
-        U1 = false;
-        U2 = false;
-        U3 = false;
+//        U1 = false;
+//        U2 = false;
+//        U3 = false;
+        bitClear(flags, U1);
+        bitClear(flags, U2);
+        bitClear(flags, U3);
         program_R();
         break;
       case 1:
         strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_G");
-        U1 = false;
-        U2 = false;
-        U3 = false;
+//        U1 = false;
+//        U2 = false;
+//        U3 = false;
+        bitClear(flags, U1);
+        bitClear(flags, U2);
+        bitClear(flags, U3);
         program_G();
         break;
       case 2:
         strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_B");
-        U1 = false;
-        U2 = false;
-        U3 = false;
+//        U1 = false;
+//        U2 = false;
+//        U3 = false;
+        bitClear(flags, U1);
+        bitClear(flags, U2);
+        bitClear(flags, U3);
         program_B();
         break;
       case 3:
         strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_RG");
-        U1 = false;
-        U2 = false;
-        U3 = false;
+//        U1 = false;
+//        U2 = false;
+//        U3 = false;
+        bitClear(flags, U1);
+        bitClear(flags, U2);
+        bitClear(flags, U3);
         program_RG();
         break;
       case 4:
         strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_RB");
-        U1 = false;
-        U2 = false;
-        U3 = false;
+//        U1 = false;
+//        U2 = false;
+//        U3 = false;
+        bitClear(flags, U1);
+        bitClear(flags, U2);
+        bitClear(flags, U3);
         program_RB();
         break;
       case 5:
         strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_GB");
-        U1 = false;
-        U2 = false;
-        U3 = false;
+//        U1 = false;
+//        U2 = false;
+//        U3 = false;
+        bitClear(flags, U1);
+        bitClear(flags, U2);
+        bitClear(flags, U3);
         program_GB(); 
         break;
       case 6:
         strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_U1");
-        U1 = true;
-        U2 = false;
-        U3 = false;
-        //program_U1();
+//        U1 = true;
+//        U2 = false;
+//        U3 = false;
+        bitSet(flags, U1);
+        bitClear(flags, U2);
+        bitClear(flags, U3);
         break;
       case 7:
         strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_U2");
-        U1 = false;
-        U2 = true;
-        U3 = false;
-        //program_U2();
+//        U1 = false;
+//        U2 = true;
+//        U3 = false;
+        bitClear(flags, U1);
+        bitSet(flags, U2);
+        bitClear(flags, U3);
         break;
       case 8:
         strip.setBrightness(TMP_BRIGHT);
         Serial.println("program_U3");
-        U1 = false;
-        U2 = false;
-        U3 = true;
-        light = true;
-        //program_U3();
+//        U1 = false;
+//        U2 = false;
+//        U3 = true;
+//        light = true;
+        bitClear(flags, U1);
+        bitClear(flags, U2);
+        bitSet(flags, U3);
+        bitSet(flags, LIGHT);
         break;
       default:
         Serial.println("Nie mam programu o tym numerze");
@@ -407,10 +447,8 @@ void set_color(int R, int G, int B) // main function, which sets colors on LED s
   
   for(i = 0; i < N_LED; i++)
   {
-//    Serial.print(i);
-//    Serial.print(": calc_bright: ");
-//    Serial.println(calc_brightness(i));
-    if(!U2)
+//    if(!U2)
+    if(bitRead(flags, U2) == 0)
     {
       tmpR = (R * calc_brightness(i)) / MAX_BRIGHT;
       tmpG = (G * calc_brightness(i)) / MAX_BRIGHT;
@@ -422,20 +460,10 @@ void set_color(int R, int G, int B) // main function, which sets colors on LED s
       tmpG = G;
       tmpB = B;
     }
-    
-    /*Serial.print(i);
-    Serial.print(": ");
-    Serial.print(tmpR);
-    Serial.print(", ");
-    Serial.print(tmpG);
-    Serial.print(", ");
-    Serial.println(tmpB);*/
 
     strip.setPixelColor(i, strip.Color(tmpR, tmpG, tmpB));
     strip.show();
   }
-
-  //set_brightness();
 }
 
 void program_R() // setting RED color
@@ -471,7 +499,8 @@ void program_GB() // setting GREEN and BLUE colors
 void program_U1() // user program No. 1
                   // red and blue led lights alternately
 {
-  if(!is_changing_K)
+//  if(!is_changing_K)
+  if(bitRead(flags, IS_CHANGING_K) == 0)
   {
     int i = 0;
     for(i = 0; i < 8; i++)
@@ -488,9 +517,11 @@ void program_U1() // user program No. 1
           check_button();
           check_encoder();
           
-          if(was_change)  {   break;  }
+//          if(was_change)  {   break;  }
+          if(bitRead(flags, WAS_CHANGE) == 1)   {   break;  }
         }
-        if(is_changing_K) {   return;  }
+//        if(is_changing_K) {   return;  }
+        if(bitRead(flags, IS_CHANGING_K) == 1) {  return; }
         
         delay(80);
         strip.setBrightness(0); 
@@ -507,9 +538,11 @@ void program_U1() // user program No. 1
           check_button();
           check_encoder();
           
-          if(was_change)  {   break;  }
+//          if(was_change)  {   break;  }
+          if(bitRead(flags, WAS_CHANGE) == 1)   {   break;  }
         }
-        if(is_changing_K) {   return;  }
+//        if(is_changing_K) {   return;  }
+        if(bitRead(flags, IS_CHANGING_K) == 1) {  return; }
         
         delay(80);
         
@@ -523,7 +556,8 @@ void program_U2() // user program No. 2
                   // rainbow led lights 
 {
   
-  if(!is_changing_K)
+//  if(!is_changing_K)
+  if(bitRead(flags, IS_CHANGING_K) == 0)
   {
     unsigned int rainbow_array[3];
     rainbow_array[0] = 255;
@@ -542,9 +576,11 @@ void program_U2() // user program No. 2
           check_button();
           check_encoder();
           
-          if(was_change)  {   break;  }
+//          if(was_change)  {   break;  }
+          if(bitRead(flags, WAS_CHANGE) == 1)   {   break;  }
         }
-        if(is_changing_K) {   return;  }
+//        if(is_changing_K) {   return;  }
+        if(bitRead(flags, IS_CHANGING_K) == 1)  { return; }
           
         rainbow_array[i] -= 1;
         rainbow_array[j] += 1;
@@ -561,9 +597,10 @@ void program_U3(int starting_led, bool up) // user program No. 3
 {
   if(up)       // up the led
   {
-    for(int i = starting_led; i < 8; i++)
+    for(int i = starting_led; i < N_LED; i++)
     {
-      if(light == true)
+//      if(light == true)
+      if(bitRead(flags, LIGHT) == 1)
       {
         curr_u3_led = i;
         strip.setBrightness(MAX_BRIGHT);
@@ -575,7 +612,8 @@ void program_U3(int starting_led, bool up) // user program No. 3
           check_button();
           check_encoder();
           
-          if(was_change)  {   break;  }
+//          if(was_change)  {   break;  }
+          if(bitRead(flags, WAS_CHANGE) == 1)   {   break;  }
         }
         delay(100);
         strip.setBrightness(0);
@@ -587,14 +625,16 @@ void program_U3(int starting_led, bool up) // user program No. 3
     }  
     if(curr_u3_led == N_LED - 1)
     {
-      is_up = false;
+//      is_up = false;
+      bitClear(flags, IS_UP);
     }
   }
   else          // down the led
   {
     for(int j = starting_led; j >= 0; j--)
     {
-      if(light == true)
+//      if(light == true)
+      if(bitRead(flags, LIGHT) == 1)
       {
         curr_u3_led = j;
         if(j != 7)
@@ -608,7 +648,8 @@ void program_U3(int starting_led, bool up) // user program No. 3
             check_button();
             check_encoder();
             
-            if(was_change)  {   break;  }
+//            if(was_change)  {   break;  }
+            if(bitRead(flags, WAS_CHANGE) == 1)   {   break;  }
           }
           delay(100);
           strip.setBrightness(0);
@@ -628,7 +669,8 @@ void program_U3(int starting_led, bool up) // user program No. 3
     }
     if(curr_u3_led == 0)
     {
-      is_up = true;  
+//      is_up = true;  
+      bitSet(flags, IS_UP);
     }
   }
 }
