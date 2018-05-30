@@ -24,6 +24,11 @@
 #define IS_UP 2
 #define WAS_CHANGE 1
 
+// INITIAL CONDITIONS
+#define EFFECT 0
+#define INIT_K 2
+#define INITIAL_U3_DELAY 100
+
 /*
  *  GLOBAL VARIABLES
  */
@@ -37,8 +42,8 @@ RotaryEncoder encoder(ROTARY_A, ROTARY_B);
 // Variable counts time of button down, used for long-short click recognition
 float button_down_counter = 0;
 int last_pos = -1;              // variable for left-right recognition
-unsigned char K = 2;            // K is in range 2 to 6
-unsigned char led_program = 0;
+unsigned char K = INIT_K;            // K is in range 2 to 6
+unsigned char led_program = EFFECT;
 
 // Control flags:
 // Lets try with storing all bools in one char for memory savings:
@@ -57,6 +62,8 @@ unsigned char flags = 0b00000100;
 
 unsigned char curr_u3_led = 0;            // current led of U3 program that is turned on
 unsigned char bright_offset = 0;          // variable manipulates the light offset (in function of brightness)
+unsigned char old_K = K;
+unsigned char u3_delay = INITIAL_U3_DELAY;
 
 
 /*
@@ -123,49 +130,48 @@ void check_button()
   // Check if K control is triggered
   if(digitalRead(BUTTON) == 0)
   {
-    // Applay changes to K after button was clicked to approve
-    if(bitRead(flags, IS_CHANGING_K) == 1)
+    // Button is pushed without K control
+    if(bitRead(flags, U3) == 1)
     {
-      button_down_counter = 0;
-      delay(200);
-      bitClear(flags, IS_CHANGING_K);
-      set_program();
+      button_down_counter += 0.5;
     }
     else
     {
-      // Button is pushed without K control
+      button_down_counter += 0.1; 
+    }
+    delay(10);
+
+    // Button is down for long push (K control)
+    if(button_down_counter >= 30)
+    {
       if(bitRead(flags, U3) == 1)
       {
-        button_down_counter += 0.5;
+        delay(1000);
+        led_program++;
+        button_down_counter = 0;
+        set_program();
       }
-      else
+      else if(bitRead(flags, IS_CHANGING_K) == 1)     // Set new value of K
       {
-        button_down_counter += 0.1; 
+        set_color(255,255,255);
+        delay(500);
+        button_down_counter = 0;
+        delay(200);
+        bitClear(flags, IS_CHANGING_K);
+        set_program();
       }
-      delay(10);
-  
-      // Button is down for long push (K control)
-      if(button_down_counter >= 30)
+      else if(bitRead(flags, IS_CHANGING_K) == 0)     // Start changing K sequence
       {
-        if(bitRead(flags, U3) == 1)
-        {
-          delay(1000);
-          led_program++;
-          button_down_counter = 0;
-          set_program();
-        }
-        else
-        {
-          set_color(255, 255, 255);
-          delay(500);
-  
-          bitSet(flags, IS_CHANGING_K);
-          button_down_counter = 0;
-          // K change sequence
-          set_K();
-        }
-      } 
-    }
+        set_color(255, 255, 255);
+        delay(500);
+
+        bitSet(flags, IS_CHANGING_K);
+        button_down_counter = 0;
+        old_K = K;
+        // K change sequence
+        set_K();
+      }
+    } 
   }
   else    
   {
@@ -191,7 +197,15 @@ void check_button()
     }
     else
     {
-      bitSet(flags, IS_CHANGING_K);
+      if(button_down_counter > 1)           // Discard changes to K
+      {
+        K = old_K;
+        bitClear(flags, IS_CHANGING_K);
+      }
+      else
+      {
+        bitSet(flags, IS_CHANGING_K);
+      }
     }
   }
 }
@@ -214,6 +228,13 @@ void check_encoder()
       {
         if(K < 6) { K += 1; set_K(); }
       }
+      else if(bitRead(flags, U3) == 1)
+      {
+        if(u3_delay > 25)
+        {
+          u3_delay -= 20; 
+        }
+      }
       else                    // Brightnes is being set -> Bright++
       {
         if(bright_offset < (2 * pow(2, K) - N_LED))
@@ -227,6 +248,13 @@ void check_encoder()
       if(bitRead(flags, IS_CHANGING_K) == 1)
       {
         if(K > 2) { K -= 1; set_K(); }
+      }
+      else if(bitRead(flags, U3) == 1)
+      {
+        if(u3_delay < 235)
+        {
+          u3_delay += 20; 
+        } 
       }
       else                    // Brightnes is being set -> Bright--
       {
@@ -507,7 +535,7 @@ void program_U3(int starting_led, bool up) // user program No. 3
         strip.setBrightness(MAX_BRIGHT);
         strip.setPixelColor(i, strip.Color(0, 0, 255));
         strip.show();
-        for(int i = 0; i < SAMPLING_RATE / 1000; i++)
+        for(int i = 0; i < SAMPLING_RATE / 10; i++)
         {
           // Input check
           check_button();
@@ -515,7 +543,7 @@ void program_U3(int starting_led, bool up) // user program No. 3
           
           if(bitRead(flags, WAS_CHANGE) == 1)   {   break;  }
         }
-        delay(100);
+        delay(u3_delay);
         strip.setBrightness(0);
       }
       else 
@@ -540,7 +568,7 @@ void program_U3(int starting_led, bool up) // user program No. 3
           strip.setBrightness(MAX_BRIGHT);
           strip.setPixelColor(j, strip.Color(0, 0, 255));
           strip.show();
-          for(int i = 0; i < SAMPLING_RATE / 1000; i++)
+          for(int i = 0; i < SAMPLING_RATE / 10; i++)
           {
             // Input check
             check_button();
@@ -548,7 +576,7 @@ void program_U3(int starting_led, bool up) // user program No. 3
             
             if(bitRead(flags, WAS_CHANGE) == 1)   {   break;  }
           }
-          delay(100);
+          delay(u3_delay);
           strip.setBrightness(0);
         }
         else
