@@ -2,11 +2,11 @@
 #include <RotaryEncoder.h>
 
 // PORTS
-#define ROTARY_A 5
-#define ROTARY_B 6
-#define BUTTON 7
-#define N_LED 8
-#define LED_PORT A0
+#define ROTARY_A 5  // Rotary CLK
+#define ROTARY_B 6  // Rotary DT
+#define BUTTON 7    // Rotary button
+#define N_LED 8     // Amount of leds
+#define LED_PORT A0 // LED strip DIN
 
 // MAX/MIN VALUES
 #define MAX_BRIGHT 255
@@ -14,6 +14,7 @@
 #define SAMPLING_RATE 2000
 #define TMP_BRIGHT 50
 #define DISTANCE (MAX_BRIGHT - MIN_BRIGHT)
+#define N_PROGRAMS 9
 
 // FLAGS (see description below)
 #define IS_CHANGING_K 7
@@ -41,12 +42,12 @@ RotaryEncoder encoder(ROTARY_A, ROTARY_B);
 
 // Variable counts time of button down, used for long-short click recognition
 float button_down_counter = 0;
-int last_pos = -1;              // variable for left-right recognition
+int last_pos = -1;                   // variable for left-right recognition
 unsigned char K = INIT_K;            // K is in range 2 to 6
 unsigned char led_program = EFFECT;
 
 // Control flags:
-// Lets try with storing all bools in one char for memory savings:
+// Store all bools in one char for memory savings.
 // From most significat bit: 
 // is_changing_K, U1, U2, U3, light, is_up, was_change, NULL
 // In notation from least siginificant bit (for Arduino's bitSet() and bitClear()):
@@ -293,7 +294,7 @@ void set_K()
 /*******************************************************************/
 void set_program()
 {
-  switch(led_program % 9)
+  switch(led_program % N_PROGRAMS)
     {
       case 0:
         strip.setBrightness(TMP_BRIGHT);
